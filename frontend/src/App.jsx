@@ -6,7 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 
 // Layouts - TODO: Реализовать эти компоненты
 import { MainLayout } from './components/ui/Layout/MainLayout';
-// import { AdminLayout } from './components/ui/Layout/AdminLayout';
+import { AdminLayout } from './components/ui/Layout/AdminLayout';
 // import { ParticipantLayout } from './components/ui/Layout/ParticipantLayout';
 
 // Pages - TODO: Реализовать эти страницы
@@ -29,17 +29,20 @@ import {
 // import { TeamProjectPage } from './pages/participant/TeamProjectPage';
 
 // Expert Pages - TODO: Реализовать эти страницы
-// import { ExpertDashboard } from './pages/expert/Dashboard';
-// import { ExpertAssessmentPage } from './pages/expert/AssessmentPage';
+import { ExpertDashboard } from './pages/expert/ExpertDashboard';
+import { ExpertAssessmentPage } from './pages/expert/AssessmentPage';
 
 // Admin Pages - TODO: Реализовать эти страницы
-// import { AdminDashboard } from './pages/admin/Dashboard';
-// import { AdminHackathonsPage } from './pages/admin/HackathonsPage';
+import { AdminDashboard } from './components/ui/Layout/AdminLayout';
+import { AdminHackathonsPage } from './pages/admin/AdminHackathonsPage';
 // import { AdminUsersPage } from './pages/admin/UsersPage';
 // import { AdminAnalyticsPage } from './pages/admin/AnalyticsPage';
 
 // Protected Route Component - TODO: Реализовать
 import { ProtectedRoute } from './components/shared/ProtectedRoute';
+import { CreateHackathonPage } from './pages/admin/CreateHackathonPage';
+import { ModerateCasesPage } from './pages/admin/ModerateCasesPage';
+import { AdminHackathonDetailPage } from './pages/admin/AdminHackathonDetailPage';
 
 // Временные заглушки для нереализованных компонентов
 const TempComponent = ({ name, type = 'not-implemented' }) => {
@@ -93,27 +96,25 @@ function App() {
               </ProtectedRoute>
             }>
               <Route index element={<TempComponent name="Expert Dashboard" />} />
-              {/* <Route path="assessment/:hackathonId" element={<ExpertAssessmentPage />} /> */}
-              {/* <Route path="projects/:hackathonId" element={<ExpertProjectsPage />} /> */}
+              <Route index element={<ExpertDashboard />} />
+              <Route path="assessment" element={<ExpertAssessmentPage />} />
+              <Route path="assessment/:hackathonId" element={<ExpertAssessmentPage />} />
             </Route>
 
             {/* Admin Routes - TODO: Реализовать полноценную структуру */}
-            <Route path="/admin" element={
+           <Route path="/admin" element={
               <ProtectedRoute allowedRoles={['admin', 'organizer']}>
-                <MainLayout>
-                  <TempComponent name="Admin Dashboard" />
-                </MainLayout>
+                <AdminLayout />
               </ProtectedRoute>
             }>
-
-            
-             
+              <Route index element={<AdminDashboard />} />
+              <Route path="create-hackathon" element={<CreateHackathonPage />} />
+              <Route path="moderate-cases" element={<ModerateCasesPage />} />
+              <Route path="hackathons" element={<AdminHackathonsPage />} />
+              <Route path="hackathons/:id" element={<AdminHackathonDetailPage />} />
+              <Route path="create-hackathon" element={<CreateHackathonPage />} />
+              <Route path="moderate-cases" element={<ModerateCasesPage />} />
               <Route index element={<TempComponent name="Admin Dashboard" />} />
-              {/* <Route path="hackathons" element={<AdminHackathonsPage />} /> */}
-              {/* <Route path="hackathons/:id" element={<AdminHackathonDetailPage />} /> */}
-              {/* <Route path="users" element={<AdminUsersPage />} /> */}
-              {/* <Route path="analytics" element={<AdminAnalyticsPage />} /> */}
-              {/* <Route path="criteria" element={<AdminCriteriaPage />} /> */}
             </Route>
          
             {/* Fallback */}
