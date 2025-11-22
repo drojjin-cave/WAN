@@ -1,0 +1,19 @@
+-- Проверка пользователей
+SELECT name, email, role FROM users;
+
+-- Проверка хакатонов
+SELECT name, status, format, start_date, end_date FROM hackathons;
+
+-- Проверка команд и участников
+SELECT t.name as team_name, u.name as member_name, tm.role 
+FROM teams t
+JOIN team_members tm ON t.id = tm.team_id
+JOIN users u ON u.id = tm.user_id;
+
+-- Проверка проектов и оценок
+SELECT p.name as project_name, t.name as team_name, 
+       c.name as criteria, pa.score, pa.comment
+FROM projects p
+JOIN teams t ON p.team_id = t.id
+JOIN project_assessments pa ON p.id = pa.project_id
+JOIN assessment_criteria c ON pa.criteria_id = c.id;
