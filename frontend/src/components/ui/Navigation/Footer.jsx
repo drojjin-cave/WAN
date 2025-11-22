@@ -100,99 +100,11 @@ export const Footer = () => {
             </HStack>
           </VStack>
 
-          {/* Навигация */}
-          <Stack
-            direction={{ base: 'column', md: 'row' }}
-            spacing={{ base: 6, md: 12 }}
-            align="start"
-            flex="1"
-            justify="center"
-          >
-            {/* Для участников */}
-            <VStack align="start" spacing={3}>
-              <Text fontWeight="bold" color="blue.400" fontSize="lg">
-                Участникам
-              </Text>
-              <Link 
-                as={RouterLink} 
-                to="/hackathons" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Все хакатоны
-              </Link>
-              <Link 
-                as={RouterLink} 
-                to="/login" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Войти
-              </Link>
-              <Link 
-                href="#" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Правила участия
-              </Link>
-            </VStack>
-
-            {/* Для организаторов */}
-            <VStack align="start" spacing={3}>
-              <Text fontWeight="bold" color="green.400" fontSize="lg">
-                Организаторам
-              </Text>
-              <Link 
-                href="#" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Провести хакатон
-              </Link>
-              <Link 
-                href="#" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Для экспертов
-              </Link>
-              <Link 
-                href="#" 
-                color="gray.300" 
-                _hover={{ color: 'white', transform: 'translateX(4px)' }}
-                display="flex"
-                alignItems="center"
-                transition="all 0.2s"
-              >
-                <ChevronRightIcon w={3} h={3} mr={1} />
-                Документация
-              </Link>
-            </VStack>
-          </Stack>
+       
+          
 
           {/* Контакты и документы */}
-          <VStack align="start" spacing={4} flex="1">
+          <VStack align="end" spacing={4} flex="1">
             <VStack align="start" spacing={3}>
               <Text fontWeight="bold" color="orange.400" fontSize="lg">
                 Контакты
@@ -221,40 +133,7 @@ export const Footer = () => {
               </Link>
             </VStack>
 
-            {/* Документы */}
-            <VStack align="start" spacing={3}>
-              <Text fontWeight="bold" color="purple.400" fontSize="lg">
-                Документы
-              </Text>
-              <HStack spacing={4} flexWrap="wrap">
-                <Link 
-                  href="#" 
-                  color="gray.300" 
-                  _hover={{ color: 'white' }}
-                  display="flex"
-                  alignItems="center"
-                  fontSize="sm"
-                  transition="all 0.2s"
-                >
-                  <DocumentIcon w={3} h={3} mr={1} />
-                  Политика конфиденциальности
-                  <ExternalLinkIcon w={2} h={2} mx={1} />
-                </Link>
-                <Link 
-                  href="#" 
-                  color="gray.300" 
-                  _hover={{ color: 'white' }}
-                  display="flex"
-                  alignItems="center"
-                  fontSize="sm"
-                  transition="all 0.2s"
-                >
-                  <DocumentIcon w={3} h={3} mr={1} />
-                  Пользовательское соглашение
-                  <ExternalLinkIcon w={2} h={2} mx={1} />
-                </Link>
-              </HStack>
-            </VStack>
+           
           </VStack>
         </Flex>
 

@@ -53,18 +53,6 @@ const TempComponent = ({ name, type = 'not-implemented' }) => {
   return <Component title={`${name} - В разработке`} />;
 };
 
-// Временные layout компоненты
-const TempLayout = ({ children }) => (
-  <Box>
-    <Box bg="gray.100" p={4}>
-      <h2>Temp Layout</h2>
-    </Box>
-    {children}
-  </Box>
-);
-
-
-
 function App() {
   return (
       <AuthProvider>
@@ -86,9 +74,9 @@ function App() {
             {/* Participant Routes - TODO: Реализовать полноценную структуру */}
             <Route path="/participant" element={
               <ProtectedRoute allowedRoles={['participant', 'team_lead']}>
-                <TempLayout>
+                <MainLayout>
                   <TempComponent name="Participant Dashboard" />
-                </TempLayout>
+                </MainLayout>
               </ProtectedRoute>
             }>
               <Route index element={<TempComponent name="Participant Dashboard" />} />
@@ -99,9 +87,9 @@ function App() {
             {/* Expert Routes - TODO: Реализовать полноценную структуру */}
             <Route path="/expert" element={
               <ProtectedRoute allowedRoles={['expert', 'judge']}>
-                <TempLayout>
+                <MainLayout>
                   <TempComponent name="Expert Dashboard" />
-                </TempLayout>
+                </MainLayout>
               </ProtectedRoute>
             }>
               <Route index element={<TempComponent name="Expert Dashboard" />} />
@@ -112,9 +100,9 @@ function App() {
             {/* Admin Routes - TODO: Реализовать полноценную структуру */}
             <Route path="/admin" element={
               <ProtectedRoute allowedRoles={['admin', 'organizer']}>
-                <TempLayout>
+                <MainLayout>
                   <TempComponent name="Admin Dashboard" />
-                </TempLayout>
+                </MainLayout>
               </ProtectedRoute>
             }>
 
