@@ -3,8 +3,16 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  define: {
-    'process.env': {}
-  }
+    plugins: [react()],
+
+    base: '/build/',
+    build: {
+        outDir: '../public/build',
+        emptyOutDir: true,
+        manifest: true
+    },
+
+    define: {
+        'process.env': {}
+    }
 })
