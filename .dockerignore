@@ -1,0 +1,7 @@
+node_modules
+vendor
+.env
+docker/
+storage/*.key
+/public/build
+/public/hot
