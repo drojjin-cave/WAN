@@ -1,19 +1,523 @@
--- Проверка пользователей
-SELECT name, email, role FROM users;
+-- =============================================
+-- HackathonOS Database Structure
+-- PostgreSQL 13+
+-- =============================================
 
--- Проверка хакатонов
-SELECT name, status, format, start_date, end_date FROM hackathons;
+-- Расширения
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Проверка команд и участников
-SELECT t.name as team_name, u.name as member_name, tm.role 
+-- =============================================
+-- 1. Пользователи и аутентификация
+-- =============================================
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('participant', 'team_lead', 'expert', 'judge', 'admin', 'organizer')),
+    avatar_url VARCHAR(500),
+    phone VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE user_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    bio TEXT,
+    skills TEXT[], -- Массив навыков ['JavaScript', 'React', 'Node.js']
+    experience_level VARCHAR(50), -- beginner, intermediate, advanced, expert
+    github_url VARCHAR(500),
+    linkedin_url VARCHAR(500),
+    portfolio_url VARCHAR(500),
+    company VARCHAR(200),
+    position VARCHAR(200),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    user_agent TEXT,
+    ip_address INET,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- 2. Хакатоны и мероприятия
+-- =============================================
+
+CREATE TABLE hackathons (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    short_description VARCHAR(500),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'upcoming', 'active', 'completed', 'cancelled')) DEFAULT 'draft',
+    format VARCHAR(20) NOT NULL CHECK (format IN ('online', 'offline', 'hybrid')),
+    
+    -- Даты и время
+    registration_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    registration_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    
+    -- Место проведения
+    location VARCHAR(500),
+    online_url VARCHAR(500),
+    timezone VARCHAR(50) DEFAULT 'Europe/Moscow',
+    
+    -- Организационная информация
+    max_participants INTEGER,
+    max_teams INTEGER,
+    prizes_description TEXT,
+    rules_description TEXT,
+    theme VARCHAR(200),
+    tags TEXT[], -- ['AI', 'Blockchain', 'Web3', 'Mobile']
+    
+    -- Визуальная идентификация
+    logo_url VARCHAR(500),
+    banner_url VARCHAR(500),
+    primary_color VARCHAR(7), -- HEX цвет
+    secondary_color VARCHAR(7), -- HEX цвет
+    
+    -- Метаданные
+    created_by UUID NOT NULL REFERENCES users(id),
+    is_public BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Критерии оценки для хакатона
+CREATE TABLE assessment_criteria (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    max_score INTEGER NOT NULL DEFAULT 10,
+    weight DECIMAL(3,2) NOT NULL DEFAULT 1.0, -- Вес критерия в общей оценке
+    order_index INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- 3. Команды и участники
+-- =============================================
+
+CREATE TABLE teams (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    avatar_url VARCHAR(500),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Уникальное ограничение: название команды в рамках хакатона
+    UNIQUE(hackathon_id, name)
+);
+
+-- Участники команд (связь многие-ко-многим)
+CREATE TABLE team_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('member', 'leader')),
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Один пользователь может быть только в одной команде на хакатон
+    UNIQUE(user_id, hackathon_id),
+    
+    -- Для поддержки UNIQUE constraint выше
+    hackathon_id UUID NOT NULL,
+    FOREIGN KEY (hackathon_id) REFERENCES hackathons(id)
+);
+
+-- Заявки на участие в хакатонах
+CREATE TABLE hackathon_registrations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES teams(id), -- NULL если регистрируется один
+    registration_type VARCHAR(20) NOT NULL CHECK (registration_type IN ('individual', 'team')),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'waiting_list')) DEFAULT 'pending',
+    
+    -- Информация о участнике
+    experience_level VARCHAR(50),
+    skills TEXT[],
+    motivation TEXT,
+    custom_questions JSONB, -- Гибкие дополнительные вопросы
+    
+    -- Техническая информация
+    registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    approved_by UUID REFERENCES users(id),
+    
+    UNIQUE(hackathon_id, user_id)
+);
+
+-- =============================================
+-- 4. Проекты и оценка
+-- =============================================
+
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    
+    -- Ссылки на материалы проекта
+    repository_url VARCHAR(500),
+    presentation_url VARCHAR(500),
+    demo_video_url VARCHAR(500),
+    website_url VARCHAR(500),
+    documentation_url VARCHAR(500),
+    
+    -- Дополнительная информация
+    technologies TEXT[], -- Используемые технологии
+    challenges TEXT, -- С какими сложностями столкнулись
+    future_plans TEXT, -- Планы по развитию
+    
+    -- Статус проекта
+    status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'submitted', 'under_review', 'completed')) DEFAULT 'draft',
+    
+    -- Метаданные
+    submitted_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(team_id, hackathon_id)
+);
+
+-- Оценки проектов экспертами
+CREATE TABLE project_assessments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    expert_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    criteria_id UUID NOT NULL REFERENCES assessment_criteria(id) ON DELETE CASCADE,
+    
+    -- Оценка
+    score INTEGER NOT NULL CHECK (score >= 0),
+    comment TEXT,
+    
+    -- Техническая информация
+    assessed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_draft BOOLEAN DEFAULT FALSE,
+    
+    -- Эксперт может оценивать каждый критерий только один раз
+    UNIQUE(project_id, expert_id, criteria_id)
+);
+
+-- Финальные результаты
+CREATE TABLE final_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    
+    -- Результаты
+    total_score DECIMAL(5,2) NOT NULL,
+    average_score DECIMAL(5,2) NOT NULL,
+    rank INTEGER,
+    prize_place INTEGER,
+    notes TEXT,
+    
+    -- Метаданные
+    calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    calculated_by UUID REFERENCES users(id),
+    
+    UNIQUE(project_id)
+);
+
+-- =============================================
+-- 5. Эксперты и организаторы
+-- =============================================
+
+-- Назначение экспертов на хакатоны
+CREATE TABLE hackathon_experts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    expert_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('expert', 'judge', 'mentor')),
+    specialization TEXT[],
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    assigned_by UUID REFERENCES users(id),
+    
+    UNIQUE(hackathon_id, expert_id)
+);
+
+-- Проекты, назначенные для оценки эксперту
+CREATE TABLE expert_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_expert_id UUID NOT NULL REFERENCES hackathon_experts(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    
+    UNIQUE(hackathon_expert_id, project_id)
+);
+
+-- Кейсы, предложенные экспертами
+CREATE TABLE expert_cases (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    expert_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    category VARCHAR(100),
+    difficulty VARCHAR(20) CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
+    
+    -- Метаданные
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    reviewed_by UUID REFERENCES users(id),
+    review_notes TEXT,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- 6. Чекпоинты и этапы
+-- =============================================
+
+-- Чекпоинты хакатона
+CREATE TABLE checkpoints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    deadline TIMESTAMP WITH TIME ZONE NOT NULL,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    is_mandatory BOOLEAN DEFAULT TRUE,
+    max_score INTEGER DEFAULT 0, -- Если чекпоинт оценивается
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Статусы чекпоинтов для команд
+CREATE TABLE team_checkpoints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    checkpoint_id UUID NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'in_progress')) DEFAULT 'pending',
+    submitted_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    attachment_url VARCHAR(500), -- Ссылка на прикрепленный файл
+    
+    UNIQUE(team_id, checkpoint_id)
+);
+
+-- Оценки чекпоинтов (если они оцениваются)
+CREATE TABLE checkpoint_assessments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_checkpoint_id UUID NOT NULL REFERENCES team_checkpoints(id) ON DELETE CASCADE,
+    expert_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    score INTEGER,
+    comment TEXT,
+    assessed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(team_checkpoint_id, expert_id)
+);
+
+-- =============================================
+-- 7. Коммуникация и уведомления
+-- =============================================
+
+CREATE TABLE announcements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hackathon_id UUID NOT NULL REFERENCES hackathons(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id),
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    is_important BOOLEAN DEFAULT FALSE,
+    is_published BOOLEAN DEFAULT TRUE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE team_chat_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id),
+    content TEXT NOT NULL,
+    attachment_url VARCHAR(500),
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL, -- 'registration_approved', 'checkpoint_reminder', etc.
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    data JSONB, -- Дополнительные данные
+    is_read BOOLEAN DEFAULT FALSE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================
+-- 8. Системные таблицы
+-- =============================================
+
+CREATE TABLE user_activity_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(50),
+    resource_id UUID,
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE system_settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT NOT NULL,
+    description TEXT,
+    data_type VARCHAR(20) DEFAULT 'string', -- string, number, boolean, json
+    is_public BOOLEAN DEFAULT FALSE,
+    
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES users(id)
+);
+
+-- =============================================
+-- Индексы для производительности
+-- =============================================
+
+-- Пользователи
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_created_at ON users(created_at);
+
+-- Хакатоны
+CREATE INDEX idx_hackathons_status ON hackathons(status);
+CREATE INDEX idx_hackathons_dates ON hackathons(start_date, end_date);
+CREATE INDEX idx_hackathons_created_by ON hackathons(created_by);
+CREATE INDEX idx_hackathons_public ON hackathons(is_public) WHERE is_public = TRUE;
+
+-- Команды
+CREATE INDEX idx_teams_hackathon ON teams(hackathon_id);
+CREATE INDEX idx_teams_created_by ON teams(created_by);
+
+-- Участники команд
+CREATE INDEX idx_team_members_team ON team_members(team_id);
+CREATE INDEX idx_team_members_user ON team_members(user_id);
+CREATE INDEX idx_team_members_hackathon ON team_members(hackathon_id);
+
+-- Регистрации
+CREATE INDEX idx_registrations_hackathon ON hackathon_registrations(hackathon_id);
+CREATE INDEX idx_registrations_user ON hackathon_registrations(user_id);
+CREATE INDEX idx_registrations_status ON hackathon_registrations(status);
+
+-- Проекты
+CREATE INDEX idx_projects_team ON projects(team_id);
+CREATE INDEX idx_projects_hackathon ON projects(hackathon_id);
+CREATE INDEX idx_projects_status ON projects(status);
+
+-- Оценки
+CREATE INDEX idx_assessments_project ON project_assessments(project_id);
+CREATE INDEX idx_assessments_expert ON project_assessments(expert_id);
+
+-- Эксперты
+CREATE INDEX idx_hackathon_experts_hackathon ON hackathon_experts(hackathon_id);
+CREATE INDEX idx_hackathon_experts_expert ON hackathon_experts(expert_id);
+
+-- Чекпоинты
+CREATE INDEX idx_checkpoints_hackathon ON checkpoints(hackathon_id);
+CREATE INDEX idx_team_checkpoints_team ON team_checkpoints(team_id);
+
+-- Активность
+CREATE INDEX idx_activity_user ON user_activity_logs(user_id);
+CREATE INDEX idx_activity_created ON user_activity_logs(created_at);
+
+-- Уведомления
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(is_read) WHERE is_read = FALSE;
+
+-- =============================================
+-- Триггеры для обновления updated_at
+-- =============================================
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Триггеры для таблиц с updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_hackathons_updated_at BEFORE UPDATE ON hackathons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_announcements_updated_at BEFORE UPDATE ON announcements FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- Представления (Views) для удобных запросов
+-- =============================================
+
+-- Представление для статистики хакатонов
+CREATE VIEW hackathon_stats AS
+SELECT 
+    h.id,
+    h.name,
+    h.status,
+    COUNT(DISTINCT r.id) as registered_participants,
+    COUNT(DISTINCT t.id) as teams_count,
+    COUNT(DISTINCT p.id) as projects_count,
+    COUNT(DISTINCT he.id) as experts_count
+FROM hackathons h
+LEFT JOIN hackathon_registrations r ON h.id = r.hackathon_id AND r.status = 'approved'
+LEFT JOIN teams t ON h.id = t.hackathon_id
+LEFT JOIN projects p ON h.id = p.hackathon_id
+LEFT JOIN hackathon_experts he ON h.id = he.hackathon_id
+GROUP BY h.id, h.name, h.status;
+
+-- Представление для рейтинга команд
+CREATE VIEW team_rankings AS
+SELECT 
+    t.id as team_id,
+    t.name as team_name,
+    h.id as hackathon_id,
+    h.name as hackathon_name,
+    COALESCE(fr.total_score, 0) as total_score,
+    COALESCE(fr.rank, 0) as rank,
+    COUNT(DISTINCT tm.user_id) as member_count
 FROM teams t
-JOIN team_members tm ON t.id = tm.team_id
-JOIN users u ON u.id = tm.user_id;
+JOIN hackathons h ON t.hackathon_id = h.id
+LEFT JOIN final_results fr ON t.id = (SELECT team_id FROM projects WHERE id = fr.project_id)
+LEFT JOIN team_members tm ON t.id = tm.team_id
+GROUP BY t.id, t.name, h.id, h.name, fr.total_score, fr.rank;
 
--- Проверка проектов и оценок
-SELECT p.name as project_name, t.name as team_name, 
-       c.name as criteria, pa.score, pa.comment
-FROM projects p
-JOIN teams t ON p.team_id = t.id
-JOIN project_assessments pa ON p.id = pa.project_id
-JOIN assessment_criteria c ON pa.criteria_id = c.id;
+-- =============================================
+-- Комментарии к таблицам
+-- =============================================
+
+COMMENT ON TABLE users IS 'Основная таблица пользователей системы';
+COMMENT ON TABLE hackathons IS 'Хакатоны и мероприятия';
+COMMENT ON TABLE teams IS 'Команды участников';
+COMMENT ON TABLE projects IS 'Проекты команд';
+COMMENT ON TABLE project_assessments IS 'Оценки проектов экспертами';
+COMMENT ON TABLE checkpoints IS 'Чекпоинты и этапы хакатона';
+
+COMMENT ON COLUMN users.role IS 'Роль пользователя: participant, team_lead, expert, judge, admin, organizer';
+COMMENT ON COLUMN hackathons.status IS 'Статус хакатона: draft, upcoming, active, completed, cancelled';
+COMMENT ON COLUMN hackathon_registrations.status IS 'Статус регистрации: pending, approved, rejected, waiting_list';
